@@ -78,16 +78,12 @@ async fn print_ip_address(ip_address: actix_web::web::Path<String>) -> impl Resp
 async fn download_databases() -> Result<(), Error> {
     let ipv4_url = "https://cdn.jsdelivr.net/npm/@ip-location-db/asn-country/asn-country-ipv4-num.csv";
     let ipv6_url = "https://cdn.jsdelivr.net/npm/@ip-location-db/asn-country/asn-country-ipv6-num.csv";
-
     let ipv4_response = reqwest::get(ipv4_url).await?;
     let ipv6_response = reqwest::get(ipv6_url).await?;
-
-    let mut ipv4_file = File::create("asn-country-ipv4-num.csv");
+    let mut ipv4_file = File::create("asn-country-ipv4-num.csv").expect("DOESNT WORK");
+    let mut ipv6_file = File::create("asn-country-ipv6-num.csv").expect("DOESNT WORK");
     ipv4_file.write_all(&ipv4_response.bytes().await?);
-
-    let mut ipv6_file = File::create("asn-country-ipv6-num.csv")?;
-    ipv6_file.write_all(&ipv6_response.bytes().await?)?;
-
+    ipv6_file.write_all(&ipv6_response.bytes().await?);
     Ok(())
 }
 
