@@ -1,9 +1,11 @@
-use actix_web::{get, App, HttpResponse, HttpServer, Responder};
-use std::net::IpAddr;
+use actix_web::{get, middleware::Logger, App, HttpResponse, HttpServer, Responder};
+use csv;
+use env_logger::Env;
+use reqwest::Error;
+use std::env;
 use std::fs::File;
 use std::io::Write;
-use reqwest::Error;
-use csv;
+use std::net::IpAddr;
 
 #[get("/")]
 async fn get_ip_address(request: actix_web::HttpRequest) -> impl Responder {
@@ -15,7 +17,10 @@ async fn get_ip_address(request: actix_web::HttpRequest) -> impl Responder {
         .and_then(|ip_string| ip_string.parse().ok());
 
     let mut response_dict = std::collections::HashMap::new();
-    response_dict.insert("ip_address".to_string(), ip_address.map(|ip| ip.to_string()).unwrap_or_default());
+    response_dict.insert(
+        "ip_address".to_string(),
+        ip_address.map(|ip| ip.to_string()).unwrap_or_default(),
+    );
 
     if let Some(ip) = ip_address {
         let ip_number = ip_to_number(&ip);
@@ -45,10 +50,12 @@ async fn print_ip_address(ip_address: actix_web::web::Path<String>) -> impl Resp
     let ip: Option<IpAddr> = ip_address.parse().ok();
 
     let mut response_dict = std::collections::HashMap::new();
-    response_dict.insert("ip_address".to_string(), ip.map(|ip| ip.to_string()).unwrap_or_default());
+    response_dict.insert(
+        "ip_address".to_string(),
+        ip.map(|ip| ip.to_string()).unwrap_or_default(),
+    );
 
     if let Some(ip) = ip {
-    
         let ip_number: u128 = match ip {
             IpAddr::V4(ip) => u32::from(ip).into(),
             IpAddr::V6(ip) => u128::from(ip),
@@ -76,14 +83,16 @@ async fn print_ip_address(ip_address: actix_web::web::Path<String>) -> impl Resp
 }
 
 async fn download_databases() -> Result<(), Error> {
-    let ipv4_url = "https://cdn.jsdelivr.net/npm/@ip-location-db/asn-country/asn-country-ipv4-num.csv";
-    let ipv6_url = "https://cdn.jsdelivr.net/npm/@ip-location-db/asn-country/asn-country-ipv6-num.csv";
+    let ipv4_url =
+        "https://cdn.jsdelivr.net/npm/@ip-location-db/asn-country/asn-country-ipv4-num.csv";
+    let ipv6_url =
+        "https://cdn.jsdelivr.net/npm/@ip-location-db/asn-country/asn-country-ipv6-num.csv";
     let ipv4_response = reqwest::get(ipv4_url).await?;
     let ipv6_response = reqwest::get(ipv6_url).await?;
     let mut ipv4_file = File::create("asn-country-ipv4-num.csv").expect("DOESNT WORK");
     let mut ipv6_file = File::create("asn-country-ipv6-num.csv").expect("DOESNT WORK");
-    ipv4_file.write_all(&ipv4_response.bytes().await?);
-    ipv6_file.write_all(&ipv6_response.bytes().await?);
+    let _ = ipv4_file.write_all(&ipv4_response.bytes().await?);
+    let _ = ipv6_file.write_all(&ipv6_response.bytes().await?);
     Ok(())
 }
 
@@ -117,14 +126,22 @@ fn lookup_ipv6_country(ip_number: &u128) -> String {
 
 fn is_eu_country(country_code: &str) -> bool {
     match country_code {
-        "AT" | "BE" | "BG" | "HR" | "CY" | "CZ" | "DK" | "EE" | "FI" | "FR" | "DE" | "GR" | "HU" | "IE" | "IT" | "LV" | "LT" | "LU" | "MT" | "NL" | "PL" | "PT" | "RO" | "SK" | "SI" | "ES" | "SE" => true,
-        _ => false
+        "AT" | "BE" | "BG" | "HR" | "CY" | "CZ" | "DK" | "EE" | "FI" | "FR" | "DE" | "GR"
+        | "HU" | "IE" | "IT" | "LV" | "LT" | "LU" | "MT" | "NL" | "PL" | "PT" | "RO" | "SK"
+        | "SI" | "ES" | "SE" => true,
+        _ => false,
     }
 }
 
 fn ip_to_number(ip: &IpAddr) -> u128 {
     match ip {
-        IpAddr::V4(v4) => u128::from(v4.clone().octets().iter().rev().fold(0, |acc, octet| (acc << 8) | u128::from(*octet))),
+        IpAddr::V4(v4) => u128::from(
+            v4.clone()
+                .octets()
+                .iter()
+                .rev()
+                .fold(0, |acc, octet| (acc << 8) | u128::from(*octet)),
+        ),
         IpAddr::V6(v6) => {
             let segments = v6.segments();
             (u128::from(segments[0]) << 112)
@@ -141,13 +158,43 @@ fn ip_to_number(ip: &IpAddr) -> u128 {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    download_databases().await; 
-    HttpServer::new(|| {
+    // initialize logging
+    env_logger::init_from_env(Env::default().default_filter_or("info"));
+
+    // download the databases
+    let _ = download_databases().await;
+
+    // configure the port
+    let port_str: String = env::var("SERVER_PORT").unwrap_or_else(|_| "8080".to_string());
+    let port = match port_str.parse::<u16>() {
+        Ok(port) if (1..=65535).contains(&port) => port,
+        _ => {
+            panic!(
+                "Invalid port number specified in SERVER_PORT environment variable: {}",
+                port_str
+            );
+        }
+    };
+
+    // set the flapper version
+    let rustloc_version = env::var("RUSTLOC_VERSION")
+        .or_else(|_| env::var("CARGO_PKG_VERSION"))
+        .unwrap_or_else(|_| "0.0.0-dev (not set)".to_string());
+
+    // print out some basic info about the server
+    log::info!("Starting Rustloc v{rustloc_version}");
+    log::info!("Serving at 0.0.0.0:{port}");
+    log::info!("Lookup your ip address at /");
+    log::info!("Lookup any IP address at /<ip_address>");
+
+    // start server
+    HttpServer::new(move || {
         App::new()
+            .wrap(Logger::default())
             .service(get_ip_address)
             .service(print_ip_address)
     })
-    .bind("127.0.0.1:8080")?
+    .bind(("0.0.0.0", port))?
     .run()
     .await
 }

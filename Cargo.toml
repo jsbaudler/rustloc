@@ -1,6 +1,6 @@
 [package]
 name = "rustloc"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -15,3 +15,5 @@ serde = { version = "1.0", features = ["derive"] }
 maxminddb = "0.23.0"
 csv = "1.2.1"
 rusqlite = { version = "0.28.0", features = ["bundled"] }
+log = "0.4.19"
+env_logger = "0.10.0"
