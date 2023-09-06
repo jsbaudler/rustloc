@@ -13,6 +13,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 # Copy the rest
 COPY . .
+
 # Build (install) the actual binaries
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/src/app/target \
@@ -29,5 +30,3 @@ WORKDIR /app
 
 # Get compiled binaries from builder's cargo install directory
 COPY --from=builder /usr/local/cargo/bin/rustloc /app/rustloc
-
-# No CMD or ENTRYPOINT, see fly.toml with `cmd` override.
