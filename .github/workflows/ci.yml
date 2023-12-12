@@ -1,0 +1,87 @@
+name: rustloc - gha ci
+
+on:
+  push:
+    tags:
+      - '*'
+  pull_request:
+    branches:
+      - "master"
+
+jobs:
+
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v3
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+
+      - name: Build
+        run: cargo build --verbose
+
+  build-and-push:
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+
+      - name: Checkout the repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get branch name
+        id: branch-name
+        uses: tj-actions/branch-names@v8
+
+      - name: Semantic Version
+        id: version
+        uses: paulhatch/semantic-version@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log into GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create docker metadata for GHCR
+        id: ghcrmeta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/jsbaudler/rustloc
+          tags: |
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=sha
+            type=raw,value=${{ format('{0}-{1}', steps.version.outputs.version, steps.version.outputs.increment ) }}
+            type=raw,value=${{ steps.version.outputs.version }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.ghcrmeta.outputs.tags }}
+          labels: ${{ steps.gcrmeta.outputs.labels }}
+          build-args: |
+            RUSTLOC_VERSION=${{ format('{0}-{1}', steps.version.outputs.version, steps.version.outputs.increment ) }}

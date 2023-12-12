@@ -28,3 +28,7 @@ By default, the application will listen at `localhost:8080`.
 
 * Visit `http://localhost:8080` to get data about your own IP address.
 * Visit `http://localhost:8080/{ip_address}` to get data about the provided IP. Replace `{ip_address}` with the IP address you want to look up.
+
+## About the IP Databases
+The used IP Databases are public domain and sourced from:
+https://www.npmjs.com/package/@ip-location-db/asn-country
