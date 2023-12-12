@@ -184,7 +184,7 @@ async fn main() -> std::io::Result<()> {
     // print out some basic info about the server
     log::info!("Starting Rustloc v{rustloc_version}");
     log::info!("Serving at 0.0.0.0:{port}");
-    log::info!("Lookup your ip address at /");
+    log::info!("Lookup your IP address at /");
     log::info!("Lookup any IP address at /<ip_address>");
 
     // start server
